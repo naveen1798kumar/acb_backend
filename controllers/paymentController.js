@@ -8,20 +8,25 @@ const razorpay = new Razorpay({
   key_secret: process.env.RAZORPAY_KEY_SECRET,
 });
 
-// 🧾 Create Razorpay Order
+// 🧾 Create Razorpay Payment
 export const createPayment = async (req, res) => {
   try {
-    const { orderId, amount } = req.body;
+    const { orderId, amount, customerName, customerEmail, customerMobile } = req.body;
+
     if (!orderId || !amount) {
       return res.status(400).json({ message: "Order ID and amount required" });
     }
 
+    // 1️⃣ Create Razorpay Order (used for modal payments)
     const razorpayOrder = await razorpay.orders.create({
-      amount: amount * 100,
+      amount: amount * 100, // ₹ to paise
       currency: "INR",
       receipt: `receipt_${orderId}`,
+      payment_capture: 1,
+      notes: { integration: "ACB Bakery Payment" },
     });
 
+    // 2️⃣ Save in DB
     const payment = new Payment({
       orderId,
       amount,
@@ -30,16 +35,38 @@ export const createPayment = async (req, res) => {
     });
     await payment.save();
 
+    // 3️⃣ Optional: Create Payment Link for Desktop users (UPI via mobile)
+    const paymentLink = await razorpay.paymentLink.create({
+      amount: amount * 100,
+      currency: "INR",
+      accept_partial: false,
+      description: `Payment for Order #${orderId}`,
+      customer: {
+        name: customerName,
+        email: customerEmail,
+        contact: customerMobile,
+      },
+      notify: {
+        sms: true,
+        email: true,
+      },
+      callback_url: `${process.env.FRONTEND_URL}/payment-success`,
+      callback_method: "get",
+    });
+
+    // 4️⃣ Respond with both modal order and payment link
     res.status(201).json({
       success: true,
       razorpayOrderId: razorpayOrder.id,
       amount: razorpayOrder.amount,
       currency: razorpayOrder.currency,
       key: process.env.RAZORPAY_KEY_ID,
+      methods: ["card", "netbanking", "upi", "wallet"],
+      paymentLink: paymentLink.short_url, // frontend can show this as "Pay via Mobile"
     });
   } catch (err) {
     console.error("❌ Create Payment Error:", err);
-    res.status(500).json({ message: "Failed to create Razorpay order" });
+    res.status(500).json({ message: "Failed to create Razorpay payment" });
   }
 };
 
