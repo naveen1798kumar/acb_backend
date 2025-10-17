@@ -19,7 +19,8 @@ const app = express();
 const allowedOrigins = [
   "https://acbbakery.com",
   "https://www.acbbakery.com",
-  "http://localhost:5173"
+  "http://localhost:5173",
+  "http://localhost:5174"
 ];
 
 app.use(
