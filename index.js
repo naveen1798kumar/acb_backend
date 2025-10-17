@@ -15,11 +15,28 @@ import paymentRoutes from "./routes/paymentRoutes.js"; // ⬅ Add payment routes
 
 const app = express();
 
+// 🛡️ CORS Configuration
+const allowedOrigins = [
+  process.env.CLIENT_URL,        // Live frontend (Hostinger)
+  process.env.DASHBOARD_URL,     // Dashboard (local or deployed)
+  "http://localhost:5173",       // Local frontend
+];
+
 // Middleware
-app.use(cors({
-  origin: [process.env.CLIENT_URL, process.env.DASHBOARD_URL, "http://localhost:5173"],
-  credentials: true,
-}));
+app.use(
+  cors({
+    origin: function (origin, callback) {
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
+    methods: ["GET", "POST", "PUT", "DELETE"],
+    credentials: true,
+  })
+);
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
