@@ -3,10 +3,7 @@ import { createPayment, verifyPayment } from "../controllers/paymentController.j
 
 const router = express.Router();
 
-// Create UPI payment
 router.post("/create", createPayment);
-
-// Verify payment status
 router.post("/verify", verifyPayment);
 
 export default router;
