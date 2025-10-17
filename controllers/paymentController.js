@@ -14,19 +14,19 @@ export const createPayment = async (req, res) => {
     const { orderId, amount, customerName, customerEmail, customerMobile } = req.body;
 
     if (!orderId || !amount) {
-      return res.status(400).json({ message: "Order ID and amount required" });
+      return res.status(400).json({ message: "Order ID and amount are required" });
     }
 
-    // 1️⃣ Create Razorpay Order (used for modal payments)
+    // 1️⃣ Create Razorpay Order (for modal payments)
     const razorpayOrder = await razorpay.orders.create({
-      amount: amount * 100, // ₹ to paise
+      amount: Math.round(amount * 100), // ₹ to paise
       currency: "INR",
       receipt: `receipt_${orderId}`,
       payment_capture: 1,
       notes: { integration: "ACB Bakery Payment" },
     });
 
-    // 2️⃣ Save in DB
+    // 2️⃣ Save Payment in DB
     const payment = new Payment({
       orderId,
       amount,
@@ -35,9 +35,9 @@ export const createPayment = async (req, res) => {
     });
     await payment.save();
 
-    // 3️⃣ Optional: Create Payment Link for Desktop users (UPI via mobile)
+    // 3️⃣ Create Payment Link for Desktop users (optional)
     const paymentLink = await razorpay.paymentLink.create({
-      amount: amount * 100,
+      amount: Math.round(amount * 100),
       currency: "INR",
       accept_partial: false,
       description: `Payment for Order #${orderId}`,
@@ -54,15 +54,15 @@ export const createPayment = async (req, res) => {
       callback_method: "get",
     });
 
-    // 4️⃣ Respond with both modal order and payment link
+    // 4️⃣ Respond with all needed data for frontend
     res.status(201).json({
       success: true,
       razorpayOrderId: razorpayOrder.id,
       amount: razorpayOrder.amount,
       currency: razorpayOrder.currency,
       key: process.env.RAZORPAY_KEY_ID,
-      methods: ["card", "netbanking", "upi", "wallet"],
-      paymentLink: paymentLink.short_url, // frontend can show this as "Pay via Mobile"
+      paymentMethods: ["card", "netbanking", "upi", "wallet"],
+      paymentLink: paymentLink.short_url, // frontend can use for Desktop
     });
   } catch (err) {
     console.error("❌ Create Payment Error:", err);
@@ -75,6 +75,7 @@ export const verifyPayment = async (req, res) => {
   try {
     const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
 
+    // Generate expected signature
     const body = razorpay_order_id + "|" + razorpay_payment_id;
     const expectedSignature = crypto
       .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
@@ -85,12 +86,14 @@ export const verifyPayment = async (req, res) => {
       return res.status(400).json({ success: false, message: "Invalid signature" });
     }
 
+    // Update payment status
     const payment = await Payment.findOneAndUpdate(
       { razorpayOrderId: razorpay_order_id },
       { razorpayPaymentId: razorpay_payment_id, status: "success" },
       { new: true }
     );
 
+    // Update corresponding order
     if (payment) {
       const order = await Order.findById(payment.orderId);
       if (order) {
