@@ -18,6 +18,7 @@ const app = express();
 // 🛡️ CORS Configuration
 const allowedOrigins = [
   process.env.CLIENT_URL,        // Live frontend (Hostinger)
+  process.env.CLIENT_URL_WWW,        // Live frontend (Hostinger)
   process.env.DASHBOARD_URL,     // Dashboard (local or deployed)
   "http://localhost:5173",       // Local frontend
 ];
