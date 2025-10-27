@@ -15,20 +15,19 @@ import paymentRoutes from "./routes/paymentRoutes.js";
 dotenv.config();
 const app = express();
 
-// ✅ CORS setup for Hostinger frontend
 const allowedOrigins = [
-  "https://acbbakery.com",
-  "https://www.acbbakery.com",
+  process.env.CLIENT_URL,
+  process.env.CLIENT_URL_WWW,
+  process.env.DASHBOARD_URL,
   "http://localhost:5173",
-  "http://localhost:5174"
+  "http://localhost:5174",
 ];
 
 app.use(
   cors({
     origin: function (origin, callback) {
-      if (!origin || allowedOrigins.includes(origin)) {
-        callback(null, true);
-      } else {
+      if (!origin || allowedOrigins.includes(origin)) callback(null, true);
+      else {
         console.error("❌ CORS Blocked Origin:", origin);
         callback(new Error("Not allowed by CORS"));
       }
@@ -41,13 +40,11 @@ app.use(
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// ✅ MongoDB connection
 mongoose
   .connect(process.env.MONGO_URI)
   .then(() => console.log("✅ MongoDB Connected"))
   .catch((err) => console.error("❌ MongoDB Connection Error:", err));
 
-// ✅ Routes
 app.use("/api/products", productRoutes);
 app.use("/api/categories", categoryRoutes);
 app.use("/api/events", eventRoutes);
@@ -57,9 +54,7 @@ app.use("/api/users", userRoutes);
 app.use("/api/orders", orderRoutes);
 app.use("/api/payments", paymentRoutes);
 
-app.get("/", (req, res) => {
-  res.send("Welcome to ACB Bakery API 🍞");
-});
+app.get("/", (req, res) => res.send("Welcome to ACB Bakery API 🍞"));
 
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));

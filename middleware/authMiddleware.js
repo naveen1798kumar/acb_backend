@@ -1,33 +1,46 @@
-// backend/middleware/authMiddleware.js
 import jwt from "jsonwebtoken";
-import User from "../models/User.js";
 import dotenv from "dotenv";
 dotenv.config();
 
-const JWT_SECRET = process.env.JWT_SECRET || "supersecretkey";
+const JWT_SECRET = process.env.JWT_SECRET;
 
-const authMiddleware = async (req, res, next) => {
+// ✅ Verify Any User
+export const protect = (req, res, next) => {
   try {
-    let token;
+    const authHeader = req.headers.authorization;
 
-    if (req.headers.authorization && req.headers.authorization.startsWith("Bearer")) {
-      token = req.headers.authorization.split(" ")[1];
-    } else if (req.cookies && req.cookies.token) {
-      token = req.cookies.token;
-    }
+    if (!authHeader || !authHeader.startsWith("Bearer "))
+      return res.status(401).json({ message: "Not authorized, token missing" });
 
-    if (!token) return res.status(401).json({ message: "Not authorized, token missing" });
-
+    const token = authHeader.split(" ")[1];
     const decoded = jwt.verify(token, JWT_SECRET);
-    const user = await User.findById(decoded.id).select("-password");
-    if (!user) return res.status(401).json({ message: "User not found" });
-
-    req.user = user;
+    req.user = decoded;
     next();
   } catch (err) {
     console.error("Auth middleware error:", err);
-    return res.status(401).json({ message: "Invalid or expired token" });
+    res.status(401).json({ message: "Invalid or expired token" });
   }
 };
 
-export default authMiddleware;
+// ✅ Verify Admin Only
+export const protectAdmin = (req, res, next) => {
+  try {
+    const authHeader = req.headers.authorization;
+
+    if (!authHeader || !authHeader.startsWith("Bearer "))
+      return res.status(401).json({ message: "Not authorized, token missing" });
+
+    const token = authHeader.split(" ")[1];
+    const decoded = jwt.verify(token, JWT_SECRET);
+
+    if (decoded.role !== "admin") {
+      return res.status(403).json({ message: "Access denied: Admins only" });
+    }
+
+    req.admin = decoded;
+    next();
+  } catch (err) {
+    console.error("Admin auth error:", err);
+    res.status(401).json({ message: "Invalid or expired token" });
+  }
+};
