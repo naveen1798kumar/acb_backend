@@ -22,6 +22,8 @@ const allowedOrigins = [
   process.env.LOCAL_CLIENT,
   "http://localhost:5173",
   "http://localhost:5174",
+  "https://acbbakery.com",
+  "https://www.acbbakery.com",
 ];
 
 app.use(
