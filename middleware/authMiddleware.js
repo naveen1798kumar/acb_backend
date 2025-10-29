@@ -4,17 +4,25 @@ dotenv.config();
 
 const JWT_SECRET = process.env.JWT_SECRET;
 
-// ✅ Verify Any User
+// ✅ Protect any logged-in user
 export const protect = (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
-
-    if (!authHeader || !authHeader.startsWith("Bearer "))
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
       return res.status(401).json({ message: "Not authorized, token missing" });
+    }
 
     const token = authHeader.split(" ")[1];
     const decoded = jwt.verify(token, JWT_SECRET);
-    req.user = decoded;
+
+    // ✅ normalize ID field from JWT payload
+    const userId = decoded.id || decoded._id || decoded.userId;
+    if (!userId) {
+      console.error("❌ Invalid token payload:", decoded);
+      return res.status(401).json({ message: "Invalid token payload" });
+    }
+
+    req.user = { id: userId }; // 🔑 always consistent field
     next();
   } catch (err) {
     console.error("Auth middleware error:", err);
@@ -22,18 +30,18 @@ export const protect = (req, res, next) => {
   }
 };
 
-// ✅ Verify Admin Only
+// ✅ Protect admin-only routes
 export const protectAdmin = (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
-
     if (!authHeader || !authHeader.startsWith("Bearer "))
       return res.status(401).json({ message: "Not authorized, token missing" });
 
     const token = authHeader.split(" ")[1];
     const decoded = jwt.verify(token, JWT_SECRET);
 
-    if (decoded.role !== "admin") {
+    if (!decoded.role || decoded.role !== "admin") {
+      console.error("❌ Access denied. Token payload:", decoded);
       return res.status(403).json({ message: "Access denied: Admins only" });
     }
 

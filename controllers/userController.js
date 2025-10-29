@@ -1,38 +1,52 @@
-// backend/controllers/userController.js
 import User from "../models/User.js";
 
+// ✅ Get logged-in user profile
 export const getUserProfile = async (req, res) => {
   try {
-    const user = await User.findById(req.user._id).select("-password -otp -otpExpires");
-    if (!user) return res.status(404).json({ message: "User not found" });
+    console.log("🔹 Decoded req.user:", req.user);
+    console.log("🔹 Looking for user ID:", req.user.id);
+
+    const user = await User.findById(req.user.id).select("-password");
+
+    if (!user) {
+      console.log("❌ No user found for ID:", req.user.id);
+      const allUsers = await User.find();
+      console.log("📋 All user IDs in DB:", allUsers.map(u => u._id.toString()));
+      return res.status(404).json({ message: "User not found" });
+    }
+
     res.json({ user });
   } catch (err) {
-    console.error("getUserProfile:", err);
+    console.error("getUserProfile error:", err);
     res.status(500).json({ message: "Server error" });
   }
 };
 
+// ✅ Update profile
 export const updateUserProfile = async (req, res) => {
   try {
     const updates = req.body;
-    // Disallow password update here — create separate endpoint if needed
     delete updates.password;
-
-    const user = await User.findByIdAndUpdate(req.user._id, updates, { new: true }).select("-password");
-    res.json({ message: "Updated", user });
+    const user = await User.findByIdAndUpdate(req.user.id, updates, {
+      new: true,
+    }).select("-password");
+    res.json({ message: "Profile updated", user });
   } catch (err) {
     console.error("updateUserProfile:", err);
     res.status(500).json({ message: "Server error" });
   }
 };
 
-// Admin / Dashboard: list users (add admin check if you want)
+// ✅ List all registered users (Admin only)
 export const listUsers = async (req, res) => {
   try {
-    const users = await User.find().select("-password -otp -otpExpires");
+    console.log("✅ Admin verified:", req.admin);
+    const users = await User.find().select("-password");
+    console.log("✅ Total users found:", users.length);
     res.json({ users });
   } catch (err) {
-    console.error("listUsers:", err);
+    console.error("❌ listUsers error:", err);
     res.status(500).json({ message: "Server error" });
   }
 };
+

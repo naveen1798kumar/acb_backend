@@ -19,6 +19,7 @@ const allowedOrigins = [
   process.env.CLIENT_URL,
   process.env.CLIENT_URL_WWW,
   process.env.DASHBOARD_URL,
+  process.env.LOCAL_CLIENT,
   "http://localhost:5173",
   "http://localhost:5174",
 ];
