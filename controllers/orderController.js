@@ -3,7 +3,6 @@ import Order from "../models/Orders.js";
 
 /**
  * ✅ Create a new order
- * Called when the user completes checkout (before or after payment)
  */
 export const createOrder = async (req, res) => {
   try {
@@ -13,7 +12,7 @@ export const createOrder = async (req, res) => {
       shipping = 0,
       total,
       customer,
-      paymentMethod = "upi", // default to UPI now
+      paymentMethod = "upi",
       userId,
       notes,
     } = req.body;
@@ -29,9 +28,10 @@ export const createOrder = async (req, res) => {
       total,
       customer,
       paymentMethod,
-      userId: userId || null,
+      // ✅ Always link userId if available
+      userId: userId || req.user?._id || req.user?.id || null,
       notes,
-      paymentStatus: "pending", // always pending until payment success
+      paymentStatus: "pending",
       status: "created",
     });
 
@@ -44,12 +44,12 @@ export const createOrder = async (req, res) => {
 };
 
 /**
- * ✅ Get all orders (for admin dashboard)
+ * ✅ Get all orders (admin only)
  */
 export const getOrders = async (req, res) => {
   try {
     const orders = await Order.find().sort({ createdAt: -1 });
-    res.json(orders);
+    res.status(200).json(orders);
   } catch (err) {
     console.error("❌ Get orders error:", err);
     res.status(500).json({ message: "Failed to fetch orders" });
@@ -57,13 +57,44 @@ export const getOrders = async (req, res) => {
 };
 
 /**
- * ✅ Get a single order by ID
+ * ✅ Get all orders for a specific user
+ * Works for both admin or the same user.
+ */
+export const getOrdersByUser = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const requester = req.user; // from protect middleware
+
+    // 🧠 Allow if admin or same user
+    if (requester.role !== "admin" && requester._id.toString() !== userId) {
+      return res.status(403).json({ message: "Access denied: not authorized" });
+    }
+
+    // 🔍 Find by either userId or customer.id (old data)
+    const orders = await Order.find({
+      $or: [
+        { userId },
+        { "customer.id": userId },
+        { "customer._id": userId },
+      ],
+    }).sort({ createdAt: -1 });
+
+    // ✅ Always return 200 even when empty
+    return res.status(200).json({ orders });
+  } catch (err) {
+    console.error("❌ getOrdersByUser error:", err);
+    res.status(500).json({ message: "Failed to fetch user orders" });
+  }
+};
+
+/**
+ * ✅ Get a single order by ID (user or admin)
  */
 export const getOrderById = async (req, res) => {
   try {
     const order = await Order.findById(req.params.id);
     if (!order) return res.status(404).json({ message: "Order not found" });
-    res.json(order);
+    res.status(200).json(order);
   } catch (err) {
     console.error("❌ Get order error:", err);
     res.status(500).json({ message: "Failed to fetch order" });
@@ -71,16 +102,18 @@ export const getOrderById = async (req, res) => {
 };
 
 /**
- * ✅ Update order status (admin panel)
+ * ✅ Update order status (admin only)
  */
 export const updateOrderStatus = async (req, res) => {
   try {
     const { status } = req.body;
     const order = await Order.findById(req.params.id);
     if (!order) return res.status(404).json({ message: "Order not found" });
+
     order.status = status || order.status;
     await order.save();
-    res.json({ message: "Order updated", order });
+
+    res.status(200).json({ message: "Order updated", order });
   } catch (err) {
     console.error("❌ Update order error:", err);
     res.status(500).json({ message: "Failed to update order" });
@@ -88,8 +121,7 @@ export const updateOrderStatus = async (req, res) => {
 };
 
 /**
- * ✅ Update payment status (used for UPI or Razorpay verification)
- * PUT /api/orders/:id/payment
+ * ✅ Update payment status (admin or automated webhook)
  */
 export const setPaymentStatus = async (req, res) => {
   try {
@@ -102,13 +134,10 @@ export const setPaymentStatus = async (req, res) => {
     order.paymentStatus = paymentStatus || order.paymentStatus;
     order.paymentMeta = paymentMeta || order.paymentMeta;
 
-    // Automatically confirm the order when payment is successful
-    if (paymentStatus === "paid") {
-      order.status = "confirmed";
-    }
+    if (paymentStatus === "paid") order.status = "confirmed";
 
     await order.save();
-    res.json({ message: "Payment status updated", order });
+    res.status(200).json({ message: "Payment status updated", order });
   } catch (err) {
     console.error("❌ Set payment status error:", err);
     res.status(500).json({ message: "Failed to update payment status" });

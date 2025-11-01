@@ -6,23 +6,28 @@ import {
   getOrderById,
   updateOrderStatus,
   setPaymentStatus,
+  getOrdersByUser,
 } from "../controllers/orderController.js";
+import { protect, protectAdmin } from "../middleware/authMiddleware.js";
 
 const router = express.Router();
 
-// Public: create order (from frontend)
-router.post("/", createOrder);
+// 🛒 User: Create a new order
+router.post("/", protect, createOrder);
 
-// Admin: list orders
-router.get("/", getOrders);
+// 👤 User/Admin: Get all orders for a specific user
+router.get("/user/:userId", protect, getOrdersByUser);
 
-// Public/admin: order details
-router.get("/:id", getOrderById);
+// 🧾 Admin: Get all orders
+router.get("/", protectAdmin, getOrders);
 
-// Update order status (admin)
-router.put("/:id/status", updateOrderStatus);
+// 📦 User/Admin: Get single order by ID
+router.get("/:id", protect, getOrderById);
 
-// Update payment status
-router.put("/:id/payment", setPaymentStatus);
+// 🧑‍💼 Admin: Update order status
+router.put("/:id/status", protectAdmin, updateOrderStatus);
+
+// 💳 Admin: Update payment status
+router.put("/:id/payment", protectAdmin, setPaymentStatus);
 
 export default router;
