@@ -1,9 +1,15 @@
+// models/Category.js
 import mongoose from "mongoose";
 
-const categorySchema = new mongoose.Schema({
-  name: { type: String, required: true, unique: true },
-  subcategories: [{ name: { type: String, required: true } }],
-}, { timestamps: true });
+const categorySchema = new mongoose.Schema(
+  {
+    name: { type: String, required: true, unique: true },
+    image: { type: String }, // Cloudinary image URL
+    imagePublicId: { type: String }, // For deleting from Cloudinary
+    subcategories: [{ name: { type: String, required: true } }],
+  },
+  { timestamps: true }
+);
 
 const Category = mongoose.model("Category", categorySchema);
 export default Category;
