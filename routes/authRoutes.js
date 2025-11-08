@@ -1,9 +1,12 @@
 import express from "express";
+import passport from "passport";
 import {
   register,
   login,
   adminLogin,
-  getProfile
+  getProfile,
+  forgotPassword,
+  resetPassword,
 } from "../controllers/authController.js";
 import { protect } from "../middleware/authMiddleware.js";
 
@@ -15,5 +18,27 @@ router.post("/admin-login", adminLogin);
 
 // current logged-in user
 router.get("/me", protect, getProfile);
+
+// 🧠 New routes
+router.post("/forgot-password", forgotPassword);
+router.post("/reset-password/:token", resetPassword);
+
+// 🌐 Google OAuth routes
+router.get(
+  "/google",
+  passport.authenticate("google", { scope: ["openid", "email", "profile"] })
+);
+
+router.get(
+  "/google/callback",
+  passport.authenticate("google", {
+    failureRedirect: `${process.env.FRONTEND_URL}/login`,
+    session: false,
+  }),
+  (req, res) => {
+    const token = req.user?.token;
+    res.redirect(`${process.env.FRONTEND_URL}/auth/success?token=${token}`);
+  }
+);
 
 export default router;

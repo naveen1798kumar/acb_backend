@@ -2,6 +2,8 @@ import express from "express";
 import mongoose from "mongoose";
 import dotenv from "dotenv";
 import cors from "cors";
+import passport from "passport";
+import "./config/passport.js";
 
 import productRoutes from "./routes/productRoutes.js";
 import categoryRoutes from "./routes/categoryRoutes.js";
@@ -14,6 +16,8 @@ import paymentRoutes from "./routes/paymentRoutes.js";
 
 dotenv.config();
 const app = express();
+
+app.use(passport.initialize());
 
 const allowedOrigins = [
   process.env.CLIENT_URL,

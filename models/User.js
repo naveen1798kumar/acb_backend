@@ -3,7 +3,7 @@ import mongoose from "mongoose";
 const userSchema = new mongoose.Schema(
   {
     name: { type: String, required: true },
-    mobile: { type: String, required: true, unique: true },
+    mobile: { type: String, unique: true, default: null },
     email: {
       type: String,
       unique: true,   // ✅ only unique when a value exists
@@ -14,6 +14,8 @@ const userSchema = new mongoose.Schema(
     },
     password: { type: String, required: true },
     cart: { type: Array, default: [] },
+    resetToken: { type: String },
+    resetTokenExpires: { type: Date },
   },
   { timestamps: true }
 );

@@ -1,6 +1,11 @@
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import User from "../models/User.js";
+
+// 📦 Add new imports at the top if not already
+import crypto from "crypto";
+import { sendEmail } from "../utils/sendEmail.js";
+
 import dotenv from "dotenv";
 dotenv.config();
 
@@ -151,3 +156,84 @@ export const getProfile = async (req, res) => {
     res.status(500).json({ message: "Server error." });
   }
 };
+
+// ✅ Update Logged-in User Profile
+// ✅ Forgot Password
+export const forgotPassword = async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) return res.status(400).json({ message: "Email is required" });
+
+    const user = await User.findOne({ email });
+    if (!user)
+      return res.status(404).json({ message: "No user found with that email" });
+
+    // Generate reset token
+    const resetToken = crypto.randomBytes(20).toString("hex");
+    user.resetToken = resetToken;
+    user.resetTokenExpires = Date.now() + 15 * 60 * 1000; // 15 minutes expiry
+    await user.save();
+
+    const resetLink = `${process.env.FRONTEND_URL}/reset-password/${resetToken}`;
+
+    const html = `
+      <h2>Password Reset Request</h2>
+      <p>Click the link below to reset your password:</p>
+      <a href="${resetLink}" target="_blank">${resetLink}</a>
+      <p>This link expires in 15 minutes.</p>
+    `;
+
+    await sendEmail(
+      user.email,
+      "Reset Your Password - ACB Bakery",
+      html
+    );
+
+    res.status(200).json({
+      success: true,
+      message: "Password reset link sent to your email",
+    });
+  } catch (err) {
+    console.error("Forgot Password Error:", err);
+    res.status(500).json({ message: "Error sending reset email" });
+  }
+};
+
+// ✅ Reset Password
+export const resetPassword = async (req, res) => {
+  try {
+    const { token } = req.params;
+    const { password } = req.body;
+
+    if (!token || !password)
+      return res.status(400).json({ message: "Token and new password required" });
+
+    const user = await User.findOne({
+      resetToken: token,
+      resetTokenExpires: { $gt: Date.now() },
+    });
+
+    if (!user)
+      return res.status(400).json({ message: "Invalid or expired reset link" });
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+    user.password = hashedPassword;
+    user.resetToken = undefined;
+    user.resetTokenExpires = undefined;
+
+    await user.save();
+
+    res.status(200).json({
+      success: true,
+      message: "Password has been reset successfully",
+    });
+  } catch (err) {
+    console.error("Reset Password Error:", err);
+    res.status(500).json({ message: "Error resetting password" });
+  }
+};
+// ✅ Google OAuth Login/Register
+// const existingEmail = await User.findOne({ email });
+// if (existingEmail)
+//   return res.status(400).json({ message: "Email already registered. Please login with Google." });
