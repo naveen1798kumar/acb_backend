@@ -71,7 +71,7 @@ app.get("/", (req, res) => res.send("Welcome to ACB Bakery API 🍞"));
 
 // ✅ Serve React app in production
 if (process.env.NODE_ENV === "production") {
-  const clientPath = path.join(__dirname, "client", "dist");
+  const clientPath = path.join(__dirname, "../client/dist");
   app.use(express.static(clientPath));
 
   // ✅ Regex-based fallback route
