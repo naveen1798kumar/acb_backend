@@ -2,7 +2,7 @@ import passport from "passport";
 import { Strategy as GoogleStrategy } from "passport-google-oauth20";
 import dotenv from "dotenv";
 import User from "../models/User.js";
-import { generateToken } from "../utils/generateToken.js"; // or use local helper
+import { generateToken } from "../utils/generateToken.js";
 dotenv.config();
 
 const CALLBACK_URL =
@@ -19,26 +19,31 @@ passport.use(
     },
     async (accessToken, refreshToken, profile, done) => {
       try {
-        const email = profile.emails?.[0]?.value?.toLowerCase();
-        if (!email) return done(new Error("No email in Google profile"), null);
+        console.log("🔹 Google OAuth profile received:", profile);
 
-        // find by googleId or email
+        const email = profile.emails?.[0]?.value?.toLowerCase();
+        if (!email) {
+          console.error("❌ No email in Google profile");
+          return done(new Error("No email in Google profile"), null);
+        }
+
         let user = await User.findOne({
           $or: [{ googleId: profile.id }, { email }],
         });
 
         if (!user) {
+          console.log("🆕 Creating new user for:", email);
           user = await User.create({
             name: profile.displayName || email.split("@")[0],
             email,
             mobile: null,
-            password: null, // important: no placeholder password
+            password: null,
             googleId: profile.id,
             authType: "google",
           });
         } else {
-          // Link googleId and mark authType if needed
           if (!user.googleId) {
+            console.log("🔗 Linking Google account to existing user:", email);
             user.googleId = profile.id;
             user.authType = "google";
             await user.save();
@@ -52,9 +57,10 @@ passport.use(
         delete safeUser.resetToken;
         delete safeUser.resetTokenExpires;
 
+        console.log("✅ Google OAuth success:", safeUser.email);
         return done(null, { token, user: safeUser });
       } catch (err) {
-        console.error("GoogleStrategy error:", err);
+        console.error("❌ GoogleStrategy error:", err);
         return done(err, null);
       }
     }

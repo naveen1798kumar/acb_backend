@@ -38,7 +38,8 @@ const allowedOrigins = [
 app.use(
   cors({
     origin: function (origin, callback) {
-      if (!origin || allowedOrigins.includes(origin)) callback(null, true);
+      if (!origin || allowedOrigins.includes(origin) || origin?.includes("google.com"))
+        callback(null, true);
       else {
         console.error("❌ CORS Blocked Origin:", origin);
         callback(new Error("Not allowed by CORS"));
@@ -68,11 +69,14 @@ app.use("/api/payments", paymentRoutes);
 
 app.get("/", (req, res) => res.send("Welcome to ACB Bakery API 🍞"));
 
-// ✅ Serve React build only in production
+// ✅ Serve React app in production
 if (process.env.NODE_ENV === "production") {
-  app.use(express.static(path.join(__dirname, "client", "dist"))); // adjust if needed
-  app.get("*", (req, res) => {
-    res.sendFile(path.join(__dirname, "client", "dist", "index.html"));
+  const clientPath = path.join(__dirname, "client", "dist");
+  app.use(express.static(clientPath));
+
+  // ✅ Regex-based fallback route
+  app.get(/.*/, (req, res) => {
+    res.sendFile(path.join(clientPath, "index.html"));
   });
 }
 
