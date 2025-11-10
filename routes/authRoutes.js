@@ -37,8 +37,11 @@ router.get(
   }),
   (req, res) => {
     const { token, user } = req.user;
-    const encodedUser = encodeURIComponent(JSON.stringify(user));
-    res.redirect(`${process.env.FRONTEND_URL}/auth/success?token=${token}&user=${encodedUser}`);
+    const safeUser = user;
+    const encodedUser = safeUser ? encodeURIComponent(JSON.stringify(safeUser)) : "";
+    res.redirect(
+      `${process.env.FRONTEND_URL}/auth/success?token=${token}${encodedUser ? `&user=${encodedUser}` : ""}`
+    );
   }
 );
 

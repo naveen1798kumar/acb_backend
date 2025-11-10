@@ -1,8 +1,8 @@
 import passport from "passport";
 import { Strategy as GoogleStrategy } from "passport-google-oauth20";
-import User from "../models/User.js";
-import jwt from "jsonwebtoken";
 import dotenv from "dotenv";
+import User from "../models/User.js";
+import { generateToken } from "../utils/generateToken.js"; // or use local helper
 dotenv.config();
 
 const CALLBACK_URL =
@@ -19,35 +19,43 @@ passport.use(
     },
     async (accessToken, refreshToken, profile, done) => {
       try {
-        // Find user by Google email
-        const email = profile.emails?.[0]?.value.toLowerCase();
-        if (!email) return done(new Error("No email found in Google profile"), null);
+        const email = profile.emails?.[0]?.value?.toLowerCase();
+        if (!email) return done(new Error("No email in Google profile"), null);
 
-        let user = await User.findOne({ 
-          $or: [{ email }, { googleId: profile.id }],
-         });
+        // find by googleId or email
+        let user = await User.findOne({
+          $or: [{ googleId: profile.id }, { email }],
+        });
 
         if (!user) {
-          // Create new user if not found
           user = await User.create({
-            name: profile.displayName,
+            name: profile.displayName || email.split("@")[0],
             email,
-            password: "google_oauth_user",
-            mobile: "google_user",
+            mobile: null,
+            password: null, // important: no placeholder password
+            googleId: profile.id,
+            authType: "google",
           });
+        } else {
+          // Link googleId and mark authType if needed
+          if (!user.googleId) {
+            user.googleId = profile.id;
+            user.authType = "google";
+            await user.save();
+          }
         }
 
-        // 🔑 Generate JWT token for session-less auth
-        const token = jwt.sign(
-          { id: user._id },
-          process.env.JWT_SECRET,
-          { expiresIn: process.env.JWT_EXPIRES_IN || "7d" }
-        );
+        const token = generateToken({ id: user._id });
 
-        done(null, {user, token});
+        const safeUser = user.toObject ? user.toObject() : { ...user };
+        delete safeUser.password;
+        delete safeUser.resetToken;
+        delete safeUser.resetTokenExpires;
+
+        return done(null, { token, user: safeUser });
       } catch (err) {
-        console.error("Google OAuth Error:", err);
-        done(err, null);
+        console.error("GoogleStrategy error:", err);
+        return done(err, null);
       }
     }
   )
@@ -57,4 +65,3 @@ passport.serializeUser((data, done) => done(null, data));
 passport.deserializeUser((obj, done) => done(null, obj));
 
 export default passport;
-

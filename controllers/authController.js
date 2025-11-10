@@ -58,8 +58,21 @@ export const register = async (req, res) => {
       authType: "local",
     });
     // generate token, return success...
+    const token = generateToken({ id: user._id });
+
+    return res.status(201).json({
+      success: true,
+      token,
+      user: sanitizeUser(user),
+    });
+
   } catch (err) {
-    // handle duplicate key and other errors
+    // improved duplicate key handling
+    if (err.code === 11000) {
+      const field = Object.keys(err.keyValue || {})[0] || "field";
+      return res.status(409).json({ message: `${field} already exists` });
+    }
+    console.error("Register error:", err);
     res.status(500).json({ message: err.message || "Server error" });
   }
 };
