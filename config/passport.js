@@ -10,7 +10,6 @@ const CALLBACK_URL =
     ? process.env.GOOGLE_CALLBACK_URL
     : process.env.GOOGLE_CALLBACK_URL_LOCAL;
 
-
 passport.use(
   new GoogleStrategy(
     {
@@ -21,10 +20,12 @@ passport.use(
     async (accessToken, refreshToken, profile, done) => {
       try {
         // Find user by Google email
-        const email = profile.emails?.[0]?.value;
+        const email = profile.emails?.[0]?.value.toLowerCase();
         if (!email) return done(new Error("No email found in Google profile"), null);
 
-        let user = await User.findOne({ email });
+        let user = await User.findOne({ 
+          $or: [{ email }, { googleId: profile.id }],
+         });
 
         if (!user) {
           // Create new user if not found

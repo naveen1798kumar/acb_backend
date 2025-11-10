@@ -35,71 +35,57 @@ const generateToken = (payload) => {
 // ✅ User Registration
 export const register = async (req, res) => {
   try {
-    let { name, mobile, email, password } = req.body;
+    const { name, email, mobile, password } = req.body;
 
-    if (!name || !mobile || !password)
-      return res.status(400).json({ message: "Name, mobile, and password required" });
+    // basic validation
+    if (!name || !mobile)
+      return res.status(400).json({ message: "Name and mobile required" });
 
-    // Normalize email (empty string → null)
-    if (!email || email.trim() === "") {
-      email = null;
+    // if registering through local route, require password
+    if (!password || password.length < 6) {
+      return res
+        .status(400)
+        .json({ message: "Password is required and must be >= 6 characters" });
     }
 
-    const existing = await User.findOne({ mobile });
-    if (existing) return res.status(400).json({ message: "User already exists" });
-
-    const hashed = await bcrypt.hash(password, 10);
-
+    // continue: check duplicates, create user
+    // ensure authType = 'local'
     const user = await User.create({
       name,
+      email: email || null,
       mobile,
-      email,
-      password: hashed,
+      password,
+      authType: "local",
     });
-
-    const token = generateToken({ id: user._id });
-
-    res.status(201).json({
-      success: true,
-      token,
-      user: sanitizeUser(user),
-    });
+    // generate token, return success...
   } catch (err) {
-    console.error("Register error:", err);
-    const msg =
-      err.code === 11000
-        ? "Duplicate mobile or email"
-        : err.name === "ValidationError"
-        ? err.message
-        : "Server error";
-    res.status(500).json({ message: msg });
+    // handle duplicate key and other errors
+    res.status(500).json({ message: err.message || "Server error" });
   }
 };
 
-
 // ✅ User Login
 export const login = async (req, res) => {
-  try {
-    const { mobile, password } = req.body;
+  const { identifier, password } = req.body; // identifier = email or mobile
+  const user = await User.findOne({
+    $or: [{ email: identifier }, { mobile: identifier }],
+  });
 
-    if (!mobile || !password)
-      return res.status(400).json({ message: "Missing credentials." });
+  if (!user) return res.status(401).json({ message: "Invalid credentials" });
 
-    const user = await User.findOne({ mobile });
-    if (!user)
-      return res.status(404).json({ message: "User not found." });
-
-    const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch)
-      return res.status(401).json({ message: "Invalid credentials." });
-
-    const token = generateToken({ id: user._id });
-
-    res.json({ success: true, token, user: sanitizeUser(user) });
-  } catch (err) {
-    console.error("Login error:", err);
-    res.status(500).json({ message: "Server error during login." });
+  if (!user.password) {
+    return res.status(400).json({
+      message:
+        "No local password set for this account. Use OAuth or reset password.",
+    });
   }
+
+  const match = await bcrypt.compare(password, user.password);
+  if (!match) return res.status(401).json({ message: "Invalid credentials" });
+
+  const token = generateToken({ id: user._id });
+
+  res.json({ success: true, token, user: sanitizeUser(user) });
 };
 
 // ✅ Admin Login
@@ -129,9 +115,7 @@ export const adminLogin = async (req, res) => {
 // ✅ Fetch All Users (Dashboard/Admin)
 export const getAllUsers = async (req, res) => {
   try {
-    const users = await User.find()
-      .sort({ createdAt: -1 })
-      .select("-password");
+    const users = await User.find().sort({ createdAt: -1 }).select("-password");
     res.status(200).json(users);
   } catch (err) {
     console.error("Get users error:", err);
@@ -143,12 +127,10 @@ export const getAllUsers = async (req, res) => {
 export const getProfile = async (req, res) => {
   try {
     const userId = req.user?.id;
-    if (!userId)
-      return res.status(401).json({ message: "Not authenticated." });
+    if (!userId) return res.status(401).json({ message: "Not authenticated." });
 
     const user = await User.findById(userId).select("-password");
-    if (!user)
-      return res.status(404).json({ message: "User not found." });
+    if (!user) return res.status(404).json({ message: "User not found." });
 
     res.json({ success: true, user });
   } catch (err) {
@@ -184,11 +166,7 @@ export const forgotPassword = async (req, res) => {
       <p>This link expires in 15 minutes.</p>
     `;
 
-    await sendEmail(
-      user.email,
-      "Reset Your Password - ACB Bakery",
-      html
-    );
+    await sendEmail(user.email, "Reset Your Password - ACB Bakery", html);
 
     res.status(200).json({
       success: true,
@@ -207,7 +185,9 @@ export const resetPassword = async (req, res) => {
     const { password } = req.body;
 
     if (!token || !password)
-      return res.status(400).json({ message: "Token and new password required" });
+      return res
+        .status(400)
+        .json({ message: "Token and new password required" });
 
     const user = await User.findOne({
       resetToken: token,
