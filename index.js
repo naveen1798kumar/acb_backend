@@ -3,6 +3,8 @@ import mongoose from "mongoose";
 import dotenv from "dotenv";
 import cors from "cors";
 import passport from "passport";
+import path from "path";
+import { fileURLToPath } from "url";
 import "./config/passport.js";
 
 import productRoutes from "./routes/productRoutes.js";
@@ -16,8 +18,11 @@ import paymentRoutes from "./routes/paymentRoutes.js";
 
 dotenv.config();
 const app = express();
-
 app.use(passport.initialize());
+
+// 🧭 Directory setup
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const allowedOrigins = [
   process.env.CLIENT_URL,
@@ -63,6 +68,15 @@ app.use("/api/payments", paymentRoutes);
 
 app.get("/", (req, res) => res.send("Welcome to ACB Bakery API 🍞"));
 
+// ✅ Serve React build only in production
+if (process.env.NODE_ENV === "production") {
+  app.use(express.static(path.join(__dirname, "client", "dist"))); // adjust if needed
+  app.get("*", (req, res) => {
+    res.sendFile(path.join(__dirname, "client", "dist", "index.html"));
+  });
+}
+
+// CORS error handling middleware
 app.use((err, req, res, next) => {
   if (err.message === "Not allowed by CORS") {
     return res.status(403).json({ message: "CORS policy violation" });
