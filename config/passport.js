@@ -22,26 +22,26 @@ passport.use(
         console.log("🔹 Google OAuth profile received:", profile);
 
         const email = profile.emails?.[0]?.value?.toLowerCase();
-        if (!email) {
-          console.error("❌ No email in Google profile");
-          return done(new Error("No email in Google profile"), null);
-        }
+        if (!email) return done(new Error("No email in Google profile"), null);
 
+        // ✅ Try to find by googleId or email
         let user = await User.findOne({
           $or: [{ googleId: profile.id }, { email }],
         });
 
         if (!user) {
-          console.log("🆕 Creating new user for:", email);
-          user = await User.create({
+          console.log("🆕 Creating new Google user:", email);
+          user = new User({
             name: profile.displayName || email.split("@")[0],
             email,
-            mobile: null,
-            password: null,
             googleId: profile.id,
             authType: "google",
+            password: null,
+            mobile: null,
           });
+          await user.save();
         } else {
+          // ✅ If user exists but has no googleId, link it
           if (!user.googleId) {
             console.log("🔗 Linking Google account to existing user:", email);
             user.googleId = profile.id;
@@ -50,9 +50,11 @@ passport.use(
           }
         }
 
+        // ✅ Generate JWT token
         const token = generateToken({ id: user._id });
 
-        const safeUser = user.toObject ? user.toObject() : { ...user };
+        // ✅ Sanitize user for response
+        const safeUser = user.toObject();
         delete safeUser.password;
         delete safeUser.resetToken;
         delete safeUser.resetTokenExpires;
@@ -60,6 +62,20 @@ passport.use(
         console.log("✅ Google OAuth success:", safeUser.email);
         return done(null, { token, user: safeUser });
       } catch (err) {
+        // ✅ Graceful handling of duplicate key errors
+        if (err.code === 11000) {
+          console.warn("⚠️ Duplicate email detected during Google login");
+          const existingUser = await User.findOne({
+            email: profile.emails?.[0]?.value?.toLowerCase(),
+          });
+          if (existingUser) {
+            const token = generateToken({ id: existingUser._id });
+            const safeUser = existingUser.toObject();
+            delete safeUser.password;
+            return done(null, { token, user: safeUser });
+          }
+        }
+
         console.error("❌ GoogleStrategy error:", err);
         return done(err, null);
       }
