@@ -24,10 +24,12 @@ router.post("/reset-password/:token", resetPassword);
 /* ----------------------- GOOGLE OAUTH ---------------------------- */
 
 // Determine frontend URL safely
-const frontendBase =
-  process.env.NODE_ENV === "production"
-    ? process.env.FRONTEND_URL      // Example: https://acbbakery.com
-    : process.env.FRONTEND_URL_LOCAL; // Example: http://localhost:5173
+
+const isRender = process.env.RENDER === "true";
+
+const frontendBase = isRender
+  ? process.env.FRONTEND_URL        // render: acbbakery.com
+  : process.env.FRONTEND_URL_LOCAL; // local: localhost:5173
 
 console.log("🔵 Google OAuth using frontendBase:", frontendBase);
 

@@ -7,8 +7,10 @@ import { generateToken } from "../utils/generateToken.js";
 
 dotenv.config();
 
-const CALLBACK_URL =
-  process.env.NODE_ENV === "production"
+// ✔ Detect Render environment properly
+const isRender = process.env.RENDER === "true";
+
+const CALLBACK_URL = isRender
     ? process.env.GOOGLE_CALLBACK_URL
     : process.env.GOOGLE_CALLBACK_URL_LOCAL;
 
