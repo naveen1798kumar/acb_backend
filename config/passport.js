@@ -1,8 +1,10 @@
+// backend/config/passport.js
 import passport from "passport";
 import { Strategy as GoogleStrategy } from "passport-google-oauth20";
 import dotenv from "dotenv";
 import User from "../models/User.js";
 import { generateToken } from "../utils/generateToken.js";
+
 dotenv.config();
 
 const CALLBACK_URL =
@@ -24,7 +26,7 @@ passport.use(
         const email = profile.emails?.[0]?.value?.toLowerCase();
         if (!email) return done(new Error("No email in Google profile"), null);
 
-        // ✅ Try to find by googleId or email
+        // ✅ Find or create user
         let user = await User.findOne({
           $or: [{ googleId: profile.id }, { email }],
         });
@@ -36,24 +38,18 @@ passport.use(
             email,
             googleId: profile.id,
             authType: "google",
-            password: null,
-            mobile: null,
           });
           await user.save();
-        } else {
-          // ✅ If user exists but has no googleId, link it
-          if (!user.googleId) {
-            console.log("🔗 Linking Google account to existing user:", email);
-            user.googleId = profile.id;
-            user.authType = "google";
-            await user.save();
-          }
+        } else if (!user.googleId) {
+          user.googleId = profile.id;
+          user.authType = "google";
+          await user.save();
         }
 
-        // ✅ Generate JWT token
+        // ✅ Generate token
         const token = generateToken({ id: user._id });
 
-        // ✅ Sanitize user for response
+        // ✅ Sanitize
         const safeUser = user.toObject();
         delete safeUser.password;
         delete safeUser.resetToken;
@@ -62,7 +58,6 @@ passport.use(
         console.log("✅ Google OAuth success:", safeUser.email);
         return done(null, { token, user: safeUser });
       } catch (err) {
-        // ✅ Graceful handling of duplicate key errors
         if (err.code === 11000) {
           console.warn("⚠️ Duplicate email detected during Google login");
           const existingUser = await User.findOne({

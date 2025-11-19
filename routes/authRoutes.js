@@ -1,3 +1,4 @@
+// backend/routes/authRoutes.js
 import express from "express";
 import passport from "passport";
 import {
@@ -12,62 +13,57 @@ import { protect } from "../middleware/authMiddleware.js";
 
 const router = express.Router();
 
-// 🧑‍💻 Local Auth Routes
+/* ----------------------- LOCAL AUTH ROUTES ----------------------- */
 router.post("/register", register);
 router.post("/login", login);
 router.post("/admin-login", adminLogin);
-
-// 🔐 Get Current User Profile
 router.get("/me", protect, getProfile);
-
-// 🧠 Password Reset Routes
 router.post("/forgot-password", forgotPassword);
 router.post("/reset-password/:token", resetPassword);
 
-// 🌐 Google OAuth - Step 1: Redirect to Google
+/* ----------------------- GOOGLE OAUTH ---------------------------- */
+
+// Determine frontend URL safely
+const frontendBase =
+  process.env.NODE_ENV === "production"
+    ? process.env.FRONTEND_URL      // Example: https://acbbakery.com
+    : process.env.FRONTEND_URL_LOCAL; // Example: http://localhost:5173
+
+console.log("🔵 Google OAuth using frontendBase:", frontendBase);
+
+// ⚠ Ensure frontendBase exists
+if (!frontendBase) {
+  console.error("❌ ERROR: FRONTEND_BASE is NOT SET in .env");
+}
+
+/* ----------------- Step 1: Redirect user to Google ----------------- */
 router.get(
   "/google",
   passport.authenticate("google", {
-    scope: ["openid", "email", "profile"],
+    scope: ["profile", "email"],
     session: false,
   })
 );
 
-// 🌐 Google OAuth - Step 2: Callback from Google
+/* ----------------- Step 2: Google Callback ----------------- */
 router.get(
   "/google/callback",
   passport.authenticate("google", {
-    failureRedirect: `${process.env.FRONTEND_URL}/login`,
+    failureRedirect: `${frontendBase}/login`,
     session: false,
   }),
   (req, res) => {
     try {
-      // ✅ Safety check — ensure passport returned user data
-      if (!req.user) {
-        console.error("❌ Google OAuth failed: No user returned by passport");
-        return res.redirect(`${process.env.FRONTEND_URL}/login`);
-      }
+      if (!req.user) return res.redirect(`${frontendBase}/login`);
 
       const { token, user } = req.user;
-      if (!token || !user) {
-        console.error("❌ Google OAuth missing token/user:", req.user);
-        return res.redirect(`${process.env.FRONTEND_URL}/login`);
-      }
-
-      // ✅ Encode user safely to URL
       const encodedUser = encodeURIComponent(JSON.stringify(user));
 
-      // ✅ Build redirect URL for frontend
-      const redirectURL = `${process.env.FRONTEND_URL}/auth/success?token=${token}&user=${encodedUser}`;
+      const redirectURL = `${frontendBase}/auth/success?token=${token}&user=${encodedUser}`;
 
-      console.log("✅ Google OAuth successful for:", user.email);
-      console.log("🔁 Redirecting to:", redirectURL);
-
-      // ✅ Redirect back to frontend app
       return res.redirect(redirectURL);
     } catch (err) {
-      console.error("❌ Google OAuth callback error:", err);
-      return res.redirect(`${process.env.FRONTEND_URL}/login`);
+      return res.redirect(`${frontendBase}/login`);
     }
   }
 );

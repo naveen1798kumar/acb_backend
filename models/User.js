@@ -1,65 +1,81 @@
+// models/User.js
 import mongoose from "mongoose";
 import bcrypt from "bcryptjs";
 
-const userSchema = new mongoose.Schema(
+const cartItemSchema = new mongoose.Schema(
   {
-    name: { type: String, required: true },
-
-    mobile: { type: String, unique: true, sparse: true, default: null },
-
-    email: {
-      type: String,
-      unique: true,
-      sparse: true,
-      lowercase: true,
-      trim: true,
-      default: null,
+    product: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Product",
+      required: true,
     },
-
-    password: {
-      type: String,
-      default: null,
-      validate: {
-        validator: function (v) {
-          // ✅ Only enforce password rules for local users
-          if (this.authType === "google") return true;
-          if (!v) return false;
-          return typeof v === "string" && v.length >= 6;
-        },
-        message: "Password is required for local accounts and must be >= 6 characters.",
-      },
+    qty: {
+      type: Number,
+      required: true,
+      default: 1,
     },
-
-    googleId: { type: String, sparse: true, default: null },
-
-    authType: {
-      type: String,
-      enum: ["local", "google"],
-      default: "local",
-    },
-
-    cart: { type: Array, default: [] },
-    resetToken: { type: String },
-    resetTokenExpires: { type: Date },
   },
-  { timestamps: true }
+  { _id: false }
 );
 
-// ✅ Hash only when password is present and modified
+const userSchema = new mongoose.Schema(
+  {
+    name: { type: String, trim: true, required: true, },
+
+    email: { type: String, trim: true, lowercase: true, sparse: true, unique: false, },
+
+    mobile: { type: String, trim: true, sparse: true, },
+
+    password: { type: String, minlength: 6, },
+
+    googleId: { type: String, sparse: true, },
+
+    authType: { type: String, enum: ["local", "google"],
+      default: "local", },
+
+    resetToken: String,
+    resetTokenExpires: Date,
+
+    cart: [cartItemSchema],
+
+    role: { type: String, enum: ["user", "admin"], default: "user", },
+  },
+  {
+    timestamps: true,
+  }
+);
+
+// ✅ Password hashing middleware
 userSchema.pre("save", async function (next) {
   if (!this.isModified("password") || !this.password) return next();
-  try {
-    const salt = await bcrypt.genSalt(10);
-    this.password = await bcrypt.hash(this.password, salt);
-    next();
-  } catch (err) {
-    next(err);
-  }
+
+  const salt = await bcrypt.genSalt(10);
+  this.password = await bcrypt.hash(this.password, salt);
+  next();
 });
 
-// ✅ Keep sparse unique indexes
-userSchema.index({ email: 1 }, { unique: true, sparse: true });
-userSchema.index({ mobile: 1 }, { unique: true, sparse: true });
+// ✅ Compare password method
+userSchema.methods.matchPassword = async function (enteredPassword) {
+  if (!this.password) return false;
+  return await bcrypt.compare(enteredPassword, this.password);
+};
+
+// ✅ Prevent duplicate mobile for local users only
+userSchema.pre("save", async function (next) {
+  if (this.authType === "local" && this.mobile) {
+    const existingUser = await mongoose.models.User.findOne({
+      mobile: this.mobile,
+      _id: { $ne: this._id },
+    });
+    if (existingUser) {
+      const err = new Error("Mobile number already in use");
+      err.statusCode = 400;
+      return next(err);
+    }
+  }
+  next();
+});
 
 const User = mongoose.model("User", userSchema);
+
 export default User;

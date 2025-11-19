@@ -79,19 +79,14 @@ export const register = async (req, res) => {
 
 // ✅ User Login
 export const login = async (req, res) => {
-  const { identifier, password } = req.body; // identifier = email or mobile
+  const { mobile, password } = req.body; // identifier = email or mobile
+
   const user = await User.findOne({
-    $or: [{ email: identifier }, { mobile: identifier }],
+    $or: [{ email: mobile }, { mobile: mobile }],
   });
 
   if (!user) return res.status(401).json({ message: "Invalid credentials" });
 
-  if (!user.password) {
-    return res.status(400).json({
-      message:
-        "No local password set for this account. Use OAuth or reset password.",
-    });
-  }
 
   const match = await bcrypt.compare(password, user.password);
   if (!match) return res.status(401).json({ message: "Invalid credentials" });
@@ -164,13 +159,18 @@ export const forgotPassword = async (req, res) => {
     if (!user)
       return res.status(404).json({ message: "No user found with that email" });
 
-    // Generate reset token
     const resetToken = crypto.randomBytes(20).toString("hex");
+
     user.resetToken = resetToken;
-    user.resetTokenExpires = Date.now() + 15 * 60 * 1000; // 15 minutes expiry
+    user.resetTokenExpires = Date.now() + 15 * 60 * 1000; // 15 mins
     await user.save();
 
-    const resetLink = `${process.env.FRONTEND_URL}/reset-password/${resetToken}`;
+    const frontendBase =
+      process.env.NODE_ENV === "production"
+        ? process.env.FRONTEND_URL
+        : process.env.FRONTEND_URL_LOCAL;
+
+    const resetLink = `${frontendBase}/reset-password/${resetToken}`;
 
     const html = `
       <h2>Password Reset Request</h2>
@@ -186,7 +186,6 @@ export const forgotPassword = async (req, res) => {
       message: "Password reset link sent to your email",
     });
   } catch (err) {
-    console.error("Forgot Password Error:", err);
     res.status(500).json({ message: "Error sending reset email" });
   }
 };
