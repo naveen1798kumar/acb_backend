@@ -62,27 +62,26 @@ export const getOrders = async (req, res) => {
  */
 export const getOrdersByUser = async (req, res) => {
   try {
-    // 🔹 Admin (dashboard): userId comes from route param /orders/user/:userId
-    // 🔹 Normal user (optional): could come from req.user
     const userIdFromParam = req.params.userId;
     const userIdFromToken = req.user?._id || req.user?.id;
-
-    const userId = userIdFromParam || userIdFromToken;
+    const userId = (userIdFromParam || userIdFromToken)?.toString();
 
     if (!userId) {
       return res.status(400).json({ message: "User ID is required" });
     }
 
-    // 🔴 IMPORTANT: choose the correct field based on your Order schema:
-    // If your Order model has: user: { type: ObjectId, ref: "User" }
-    const orders = await Order.find({ user: userId })
+    console.log("🔍 Fetching orders for userId:", userId);
+
+    // ✅ Try matching both possible fields: userId OR user
+    const orders = await Order.find({
+      $or: [{ userId: userId }, { user: userId }],
+    })
       .sort({ createdAt: -1 })
+      // If your schema has refs, this is safe; if not, remove populate
+      .populate("userId", "name email mobile")
       .populate("user", "name email mobile");
 
-    // 👉 If instead your schema uses `userId`, then change the line above to:
-    // const orders = await Order.find({ userId: userId })
-    //   .sort({ createdAt: -1 })
-    //   .populate("user", "name email mobile");
+    console.log("✅ Orders found:", orders.length);
 
     return res.json({ orders });
   } catch (err) {
@@ -90,6 +89,7 @@ export const getOrdersByUser = async (req, res) => {
     return res.status(500).json({ message: "Failed to fetch user orders" });
   }
 };
+
 
 /**
  * ✅ Get a single order by ID (user or admin)
