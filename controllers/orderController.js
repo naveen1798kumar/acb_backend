@@ -62,28 +62,32 @@ export const getOrders = async (req, res) => {
  */
 export const getOrdersByUser = async (req, res) => {
   try {
-    const { userId } = req.params;
-    const requester = req.user; // from protect middleware
+    // 🔹 Admin (dashboard): userId comes from route param /orders/user/:userId
+    // 🔹 Normal user (optional): could come from req.user
+    const userIdFromParam = req.params.userId;
+    const userIdFromToken = req.user?._id || req.user?.id;
 
-    // 🧠 Allow if admin or same user
-    if (requester.role !== "admin" && requester._id.toString() !== userId) {
-      return res.status(403).json({ message: "Access denied: not authorized" });
+    const userId = userIdFromParam || userIdFromToken;
+
+    if (!userId) {
+      return res.status(400).json({ message: "User ID is required" });
     }
 
-    // 🔍 Find by either userId or customer.id (old data)
-    const orders = await Order.find({
-      $or: [
-        { userId },
-        { "customer.id": userId },
-        { "customer._id": userId },
-      ],
-    }).sort({ createdAt: -1 });
+    // 🔴 IMPORTANT: choose the correct field based on your Order schema:
+    // If your Order model has: user: { type: ObjectId, ref: "User" }
+    const orders = await Order.find({ user: userId })
+      .sort({ createdAt: -1 })
+      .populate("user", "name email mobile");
 
-    // ✅ Always return 200 even when empty
-    return res.status(200).json({ orders });
+    // 👉 If instead your schema uses `userId`, then change the line above to:
+    // const orders = await Order.find({ userId: userId })
+    //   .sort({ createdAt: -1 })
+    //   .populate("user", "name email mobile");
+
+    return res.json({ orders });
   } catch (err) {
     console.error("❌ getOrdersByUser error:", err);
-    res.status(500).json({ message: "Failed to fetch user orders" });
+    return res.status(500).json({ message: "Failed to fetch user orders" });
   }
 };
 
