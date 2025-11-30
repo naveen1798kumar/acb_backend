@@ -22,7 +22,7 @@ router.get("/user/:userId", protect, getOrdersByUser);
 router.get("/", protectAdmin, getOrders);
 
 // 📦 User/Admin: Get single order by ID
-router.get("/:id", protect, getOrderById);
+router.get("/:id", protectAdmin, getOrderById);
 
 // 🧑‍💼 Admin: Update order status
 router.put("/:id/status", protectAdmin, updateOrderStatus);

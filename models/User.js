@@ -38,6 +38,11 @@ const userSchema = new mongoose.Schema(
 
     cart: [cartItemSchema],
 
+    picture: {
+      type: String,
+      default: null,
+    },
+
     role: { type: String, enum: ["user", "admin"], default: "user", },
   },
   {

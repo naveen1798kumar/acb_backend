@@ -1,29 +1,37 @@
 import jwt from "jsonwebtoken";
-import dotenv from "dotenv";
-dotenv.config();
 import User from "../models/User.js";
+// import dotenv from "dotenv";
+// dotenv.config();
 
 const JWT_SECRET = process.env.JWT_SECRET;
 
-// ✅ Middleware for logged-in users
+// 🔒 Protect Logged-in Users OR Admins
 export const protect = async (req, res, next) => {
   try {
-    let token;
-    if (req.headers.authorization && req.headers.authorization.startsWith("Bearer")) {
-      token = req.headers.authorization.split(" ")[1];
+    const auth = req.headers.authorization;
+    if (!auth || !auth.startsWith("Bearer "))
+      return res.status(401).json({ message: "Token missing" });
+
+    const token = auth.split(" ")[1];
+    const decoded = jwt.verify(token, JWT_SECRET);
+
+    // If ADMIN TOKEN (has role only)
+    if (decoded.role === "admin") {
+      req.admin = { email: decoded.email, role: "admin" };
+      return next();
     }
 
-    if (!token) {
-      return res.status(401).json({ message: "No token, authorization denied" });
+    // Otherwise expect a normal user token with id
+    if (!decoded.id) {
+      return res.status(401).json({ message: "Invalid token payload" });
     }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = await User.findById(decoded.id).select("-password");
-
-    if (!req.user) {
+    // USER TOKEN (has ID)
+    const user = await User.findById(decoded.id).select("-password");
+    if (!user)
       return res.status(404).json({ message: "User not found" });
-    }
 
+    req.user = user;
     next();
   } catch (err) {
     console.error("Auth error:", err);
@@ -31,25 +39,25 @@ export const protect = async (req, res, next) => {
   }
 };
 
-// ✅ Middleware for admin-only routes
+// 👑 Admin-only
 export const protectAdmin = (req, res, next) => {
   try {
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith("Bearer "))
-      return res.status(401).json({ message: "Not authorized, token missing" });
+    const auth = req.headers.authorization;
+    if (!auth || !auth.startsWith("Bearer ")) {
+      return res.status(401).json({ message: "Token missing" });
+    }
 
-    const token = authHeader.split(" ")[1];
+    const token = auth.split(" ")[1];
     const decoded = jwt.verify(token, JWT_SECRET);
 
     if (decoded.role !== "admin") {
-      console.error("❌ Access denied. Token payload:", decoded);
-      return res.status(403).json({ message: "Access denied: Admins only" });
+      return res.status(403).json({ message: "Admin access required" });
     }
 
-    req.admin = decoded;
+    req.admin = { email: decoded.email, role: decoded.role };
     next();
   } catch (err) {
-    console.error("Admin auth error:", err);
-    res.status(401).json({ message: "Invalid or expired token" });
+    console.error("Admin auth error:", err.message);
+    return res.status(401).json({ message: "Invalid admin token" });
   }
 };

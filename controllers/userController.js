@@ -1,3 +1,4 @@
+import cloudinary from "../utils/cloudinary.js";
 import User from "../models/User.js";
 
 // ✅ Get logged-in user profile
@@ -22,20 +23,34 @@ export const getUserProfile = async (req, res) => {
   }
 };
 
-// ✅ Update profile
+// ✅ Update profile (final version)
 export const updateUserProfile = async (req, res) => {
   try {
-    const updates = req.body;
-    delete updates.password;
-    const user = await User.findByIdAndUpdate(req.user.id, updates, {
-      new: true,
-    }).select("-password");
-    res.json({ message: "Profile updated", user });
+    const { name, email, mobile, picture } = req.body;
+
+    const updateFields = { name, email, mobile };
+
+    // picture will already be a Cloudinary URL
+    if (picture) {
+      updateFields.picture = picture;
+    }
+
+    const user = await User.findByIdAndUpdate(
+      req.user.id,
+      updateFields,
+      { new: true }
+    ).select("-password");
+
+    res.json({
+      message: "Profile updated",
+      user,
+    });
   } catch (err) {
     console.error("updateUserProfile:", err);
     res.status(500).json({ message: "Server error" });
   }
 };
+
 
 // ✅ List all registered users (Admin only)
 export const listUsers = async (req, res) => {
