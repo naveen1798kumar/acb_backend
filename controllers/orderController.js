@@ -1,5 +1,6 @@
 // backend/controllers/orderController.js
 import Order from "../models/Orders.js";
+import Payment from "../models/Payment.js";
 
 /**
  * ✅ Create a new order
@@ -97,13 +98,26 @@ export const getOrdersByUser = async (req, res) => {
 export const getOrderById = async (req, res) => {
   try {
     const order = await Order.findById(req.params.id);
-    if (!order) return res.status(404).json({ message: "Order not found" });
-    res.status(200).json(order);
+
+    if (!order) {
+      return res.status(404).json({ message: "Order not found" });
+    }
+
+    // 🔹 Find related payment (if any)
+    const payment = await Payment.findOne({ orderId: order._id });
+
+    // 🔹 Convert to plain object and attach payment
+    const orderObj = order.toObject();
+    orderObj.payment = payment || null;
+
+    // ✅ Keep response shape same as before (just with extra field)
+    return res.status(200).json(orderObj);
   } catch (err) {
     console.error("❌ Get order error:", err);
     res.status(500).json({ message: "Failed to fetch order" });
   }
 };
+
 
 /**
  * ✅ Update order status (admin only)
