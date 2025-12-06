@@ -33,6 +33,7 @@ const allowedOrigins = [
   "http://localhost:5174",
   "https://acbbakery.com",
   "https://www.acbbakery.com",
+  "https://admin.acbbakery.com"
 ];
 
 app.use(
